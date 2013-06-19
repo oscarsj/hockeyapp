@@ -1,0 +1,13 @@
+Source: hockeyapp-cli
+Maintainer: Max Thoursie <max@spotify.com>
+Section: python
+Priority: optional
+Build-Depends: python-setuptools (>= 0.6b3), python-all (>= 2.6.6-3), debhelper (>= 7.4.3)
+Standards-Version: 3.9.1
+X-Python-Version: >= 2.6
+
+Package: hockeyapp-cli
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}
+Description: HockeyApp.net API
+ Python client for the HockeyApp.net API
