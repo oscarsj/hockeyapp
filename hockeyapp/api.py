@@ -11,6 +11,10 @@ import logging
 import httplib
 import urllib
 
+import urllib2
+from poster.encode import multipart_encode
+from poster.streaminghttp import register_openers
+
 import urlparse
 
 from types import FileType
@@ -61,53 +65,29 @@ def _dispatch_request(api_key, method, uri, parameters):
 
     logger = logging.getLogger('hockeyapp.api')
     headers = {'X-HockeyAppToken': api_key, 'Accept': '*/*'}
+    params = None
+    url = "https://%s/%s" % (SERVER, uri)
     if parameters:
         logger.debug('Encoding parameters: %r', parameters)
         params = urllib.urlencode(parameters)
-        uri = "%s?%s" % (uri, params)
+        url = "%s?%s" % (uri, params)
 
     logger.debug('Sending %s: %s with headers: %r', method, uri, headers)
-    connection = httplib.HTTPSConnection(SERVER)
-    connection.request(method, uri, None, headers)
+    request = urllib2.Request(url, params, headers)
 
     # Get the response
-    response = connection.getresponse()
+    response = urllib2.urlopen(request)
     logger.debug('Return Response: %i %s %r',
-                 response.status, response.reason, response.getheaders())
-
-    if response.status == 302:
-        connection.close()
-        location = response.getheader('location')
-        logger.debug('Making new request to %s', location)
-        parts = urlparse.urlparse(location)
-        if parts.scheme == 'http':
-            connection = httplib.HTTPConnection(parts.netloc)
-        elif parts.scheme == 'https':
-            connection = httplib.HTTPSConnection(parts.netloc)
-        else:
-            raise NotImplementedError('Unspported protocol scheme: %s',
-                                      parts.scheme)
-
-        logger.debug('%s', parts)
-
-        headers = {'Accept': '*/*'}
-        if parts.hostname.find('hockeyapp.net') > -1:
-            headers['X-HockeyAppToken'] = api_key
-
-        connection.request(method, parts.path, parts.params, headers)
-        response = connection.getresponse()
-        logger.debug('Return Response: %i %s %r',
-                     response.status, response.reason, response.getheaders())
+                 response.code, response.msg, response.headers.dict)
 
     # Read in the data from the response
     data = response.read()
-    connection.close()
-
+    
     # If we have data, json decode it
-    if data and response.getheader('content-type').find('application/json') >= 0:
+    if data and response.headers.get('content-type').find('application/json') >= 0:
         data = json.loads(data)
 
-    return response.status, data
+    return response.code, data
 
 def _dispatch_multipart_request(api_key, method, uri, parameters):
     
@@ -115,10 +95,6 @@ def _dispatch_multipart_request(api_key, method, uri, parameters):
 
     if method != 'POST':
         raise APIError('Multi-part support is only provided for POST')
-
-    import urllib2
-    from poster.encode import multipart_encode
-    from poster.streaminghttp import register_openers
 
     #register streaming http handlers with urlib2
     register_openers()
